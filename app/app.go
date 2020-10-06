@@ -8,18 +8,24 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"app/storage"
 )
 
 type Instance struct {
-	handler http.Handler
-	Storage storage.Storage
+	handler         http.Handler
+	Storage         storage.Storage
+	RequestMaxBytes int64
 }
 
 func NewInstance() *Instance {
 	router := mux.NewRouter()
-	instance := &Instance{handler: router, Storage: storage.New()}
+	instance := &Instance{
+		handler:         router,
+		Storage:         storage.New(),
+		RequestMaxBytes: 1024 * 1024,
+	}
 	router.HandleFunc("/", instance.index)
 	router.HandleFunc("/api/fetcher", instance.getRecords).Methods("GET")
 	router.HandleFunc("/api/fetcher", instance.createRecord).Methods("POST")
@@ -45,7 +51,16 @@ func (i *Instance) createRecord(w http.ResponseWriter, r *http.Request) {
 		Url      string `json:"url"`
 		Interval int    `json:"interval"`
 	}{}
-	jsonDecode(r.Body, &request)
+	err := jsonDecode(http.MaxBytesReader(w, r.Body, i.RequestMaxBytes), &request)
+	if err != nil {
+		log.Printf("create record: %s", err)
+		if isRequestBodyTooLarge(err) {
+			writeResponse(w, http.StatusRequestEntityTooLarge, nil)
+		} else {
+			writeResponse(w, http.StatusBadRequest, nil)
+		}
+		return
+	}
 
 	record := i.Storage.CreateRecord(storage.Record{
 		Url:      request.Url,
@@ -74,15 +89,20 @@ func (i *Instance) deleteRecord(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func jsonDecode(reader io.ReadCloser, value interface{}) {
+func jsonDecode(reader io.ReadCloser, value interface{}) error {
 	defer reader.Close()
 	decoder := json.NewDecoder(reader)
 	err := decoder.Decode(value)
 
 	if err != nil {
-		err = fmt.Errorf(`json decode: %w`, err)
-		log.Fatal(err)
+		return fmt.Errorf(`json decode: %w`, err)
 	}
+	return nil
+}
+
+func isRequestBodyTooLarge(err error) bool {
+	// sadly there is no sentinel error to check against, so comparing strings is the only way
+	return strings.Contains(err.Error(), "http: request body too large")
 }
 
 func writeResponse(w http.ResponseWriter, statusCode int, v interface{}) {

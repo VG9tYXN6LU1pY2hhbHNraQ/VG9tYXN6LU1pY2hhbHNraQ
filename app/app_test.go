@@ -59,6 +59,19 @@ func TestCreateRecord(t *testing.T) {
 	assertRecords(t, i.Storage.GetRecords(), append(defaultTestRecords, record))
 }
 
+func TestCreateRecordWithInvalidPayload(t *testing.T) {
+	i := newTestAppInstance()
+	i.RequestMaxBytes = 5
+
+	response := i.doRequest("POST", "/api/fetcher", "foo")
+	assertResponse(t, response, http.StatusBadRequest, "")
+
+	response = i.doRequest("POST", "/api/fetcher", `{"foobar":"foobar"}`)
+	assertResponse(t, response, http.StatusRequestEntityTooLarge, "")
+
+	assertRecords(t, i.Storage.GetRecords(), append(defaultTestRecords))
+}
+
 func TestDeleteRecord(t *testing.T) {
 	i := newTestAppInstance()
 	response := i.doRequest("DELETE", "/api/fetcher/1", "")
