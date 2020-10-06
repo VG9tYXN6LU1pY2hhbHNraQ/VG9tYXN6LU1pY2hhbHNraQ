@@ -8,6 +8,7 @@ import (
 type Storage interface {
 	CreateRecord(record Record) Record
 	GetRecords() []Record
+	DeleteRecord(id int) bool
 }
 
 func New() Storage {
@@ -46,4 +47,14 @@ func (s *storage) GetRecords() []Record {
 		return records[i].Id < records[j].Id
 	})
 	return records
+}
+
+func (s *storage) DeleteRecord(id int) bool {
+	s.mutex.Lock()
+	_, exists := s.records[id]
+	if exists {
+		delete(s.records, id)
+	}
+	s.mutex.Unlock()
+	return exists
 }

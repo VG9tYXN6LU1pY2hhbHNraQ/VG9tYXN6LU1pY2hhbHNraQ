@@ -59,7 +59,21 @@ func TestCreateRecord(t *testing.T) {
 	assertRecords(t, i.Storage.GetRecords(), append(defaultTestRecords, record))
 }
 
-func TestCreateRecordsConcurrently(t *testing.T) {
+func TestDeleteRecord(t *testing.T) {
+	i := newTestAppInstance()
+	response := i.doRequest("DELETE", "/api/fetcher/1", "")
+
+	assertResponse(t, response, http.StatusNoContent, "")
+	assertRecords(t, i.Storage.GetRecords(), defaultTestRecords[1:])
+
+	response = i.doRequest("DELETE", "/api/fetcher/1", "")
+	assertResponse(t, response, http.StatusNotFound, "")
+
+	response = i.doRequest("DELETE", "/api/fetcher/foobar", "")
+	assertResponse(t, response, http.StatusNotFound, "")
+}
+
+func TestManageRecordsConcurrently(t *testing.T) {
 	// meant to be run with -race flag
 
 	records := []storage.Record{{
@@ -70,11 +84,13 @@ func TestCreateRecordsConcurrently(t *testing.T) {
 		Interval: 42,
 	}}
 
+	deletedRecordId := defaultTestRecords[0].Id
+
 	i := newTestAppInstance()
 	assertRecords(t, i.Storage.GetRecords(), defaultTestRecords)
 
 	wg := sync.WaitGroup{}
-	wg.Add(len(records) + 1)
+	wg.Add(len(records) + 2)
 	for _, record := range records {
 		go func(record storage.Record) {
 			body := fmt.Sprintf(`{"url":"%s","interval":%d}`, record.Url, record.Interval)
@@ -89,12 +105,17 @@ func TestCreateRecordsConcurrently(t *testing.T) {
 		_ = i.doRequest("GET", "/api/fetcher", "")
 		wg.Done()
 	}()
+	go func() {
+		_ = i.doRequest("DELETE", fmt.Sprintf("/api/fetcher/%d", deletedRecordId), "")
+		wg.Done()
+	}()
 	wg.Wait()
 
 	savedRecords := i.Storage.GetRecords()
 	for _, record := range records {
 		assertRecordsContainUrl(t, savedRecords, record.Url)
 	}
+	assertRecordsDoNotContainId(t, savedRecords, deletedRecordId)
 }
 
 func newTestAppInstance() *testAppInstance {
@@ -146,5 +167,19 @@ func assertRecordsContainUrl(t *testing.T, records []storage.Record, url string)
 
 	if !found {
 		t.Errorf("Expected records to contain url '%s'. Got '%#v'", url, records)
+	}
+}
+
+func assertRecordsDoNotContainId(t *testing.T, records []storage.Record, id int) {
+	found := false
+	for _, record := range records {
+		if record.Id == id {
+			found = true
+			break
+		}
+	}
+
+	if found {
+		t.Errorf("Expected records to not contain id '%d'. Got '%#v'", id, records)
 	}
 }

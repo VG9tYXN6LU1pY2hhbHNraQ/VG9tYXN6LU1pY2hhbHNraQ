@@ -41,9 +41,6 @@ Usuwanie wskazanego urla.
 $ curl -si 127.0.0.1:8080/api/fetcher -X POST -d '{"url": "https://httpbin.org/range/15","interval":60}'
 HTTP/1.1 200 OK
 {"id": 12}
-```
-
-```
 $ curl -s 127.0.0.1:8080/api/fetcher/12 -X DELETE
 $ curl -s 127.0.0.1:8080/api/fetcher/12/history -i
 HTTP/1.1 404 Not Found

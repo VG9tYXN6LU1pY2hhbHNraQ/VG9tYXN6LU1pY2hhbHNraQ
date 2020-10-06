@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 
 	"app/storage"
 )
@@ -22,6 +23,7 @@ func NewInstance() *Instance {
 	router.HandleFunc("/", instance.index)
 	router.HandleFunc("/api/fetcher", instance.getRecords).Methods("GET")
 	router.HandleFunc("/api/fetcher", instance.createRecord).Methods("POST")
+	router.HandleFunc("/api/fetcher/{id}", instance.deleteRecord).Methods("DELETE")
 	return instance
 }
 
@@ -56,6 +58,22 @@ func (i *Instance) createRecord(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (i *Instance) deleteRecord(w http.ResponseWriter, r *http.Request) {
+	idString, _ := mux.Vars(r)["id"]
+	id, err := strconv.Atoi(idString)
+	if err != nil {
+		writeResponse(w, http.StatusNotFound, nil)
+		return
+	}
+
+	existed := i.Storage.DeleteRecord(id)
+	if existed {
+		writeResponse(w, http.StatusNoContent, nil)
+	} else {
+		writeResponse(w, http.StatusNotFound, nil)
+	}
+}
+
 func jsonDecode(reader io.ReadCloser, value interface{}) {
 	defer reader.Close()
 	decoder := json.NewDecoder(reader)
@@ -69,6 +87,10 @@ func jsonDecode(reader io.ReadCloser, value interface{}) {
 
 func writeResponse(w http.ResponseWriter, statusCode int, v interface{}) {
 	w.WriteHeader(statusCode)
+	if v == nil {
+		return
+	}
+
 	response, err := json.Marshal(v)
 	if err != nil {
 		err = fmt.Errorf(`write response: json marshal: %w`, err)
