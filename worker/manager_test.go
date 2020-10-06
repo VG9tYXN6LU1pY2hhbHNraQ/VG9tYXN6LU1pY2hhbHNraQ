@@ -53,7 +53,10 @@ func (h *testHelper) markExecuted() {
 }
 
 func (h *testHelper) timeTick() {
-	h.tickerC <- time.Now()
+	select {
+	case h.tickerC <- time.Now():
+	case <-time.After(100 * time.Millisecond):
+	}
 	select {
 	case <-h.done:
 	case <-time.After(100 * time.Millisecond):

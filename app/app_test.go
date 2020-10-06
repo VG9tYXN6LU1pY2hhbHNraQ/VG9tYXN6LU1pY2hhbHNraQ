@@ -60,7 +60,7 @@ func TestCreateRecord(t *testing.T) {
 	i := newTestAppInstance()
 	assertRecords(t, i.Storage.GetRecords(), defaultTestRecords)
 
-	body := fmt.Sprintf(`{"url":"%s","interval":%d}`, record.Url, record.Interval)
+	body := fmt.Sprintf(`{"url":"%s","interval":%f}`, record.Url, record.Interval)
 	response := i.doRequest("POST", "/api/fetcher", body)
 	expected := fmt.Sprintf(`{"id":%d}`, record.Id)
 	assertResponse(t, response, http.StatusCreated, expected)
@@ -115,7 +115,7 @@ func TestManageRecordsConcurrently(t *testing.T) {
 	wg.Add(len(records) + 2)
 	for _, record := range records {
 		go func(record storage.Record) {
-			body := fmt.Sprintf(`{"url":"%s","interval":%d}`, record.Url, record.Interval)
+			body := fmt.Sprintf(`{"url":"%s","interval":%f}`, record.Url, record.Interval)
 			_ = i.doRequest("POST", "/api/fetcher", body)
 			wg.Done()
 		}(record)
@@ -170,8 +170,14 @@ func newTestAppInstance() *testAppInstance {
 	for _, record := range defaultTestRecords {
 		instance.Storage.CreateRecord(record)
 	}
+	instance.Fetcher = dummyFetcher{}
 	return &testAppInstance{Instance: instance}
 }
+
+type dummyFetcher struct{}
+
+func (dummyFetcher) Start(record storage.Record) {}
+func (dummyFetcher) Stop(id int)                 {}
 
 type testAppInstance struct {
 	*app.Instance

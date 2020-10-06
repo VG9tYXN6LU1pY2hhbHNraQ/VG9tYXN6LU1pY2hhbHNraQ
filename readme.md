@@ -64,9 +64,6 @@ $ curl -si 127.0.0.1:8080/api/fetcher/abc
 HTTP/1.1 400 Bad Request
 $ curl -si 127.0.0.1:8080/api/fetcher/99
 HTTP/1.1 404 Not Found
-```
-
-```
 $ curl -si 127.0.0.1:8080/api/fetcher/1/history
 HTTP/1.1 200 OK
 [

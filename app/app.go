@@ -11,19 +11,23 @@ import (
 	"strings"
 
 	"app/storage"
+	"app/worker"
 )
 
 type Instance struct {
 	handler         http.Handler
+	Fetcher         worker.Fetcher
 	Storage         storage.Storage
 	RequestMaxBytes int64
 }
 
 func NewInstance() *Instance {
 	router := mux.NewRouter()
+	st := storage.New()
 	instance := &Instance{
 		handler:         router,
-		Storage:         storage.New(),
+		Fetcher:         worker.NewFetcher(st),
+		Storage:         st,
 		RequestMaxBytes: 1024 * 1024,
 	}
 	router.HandleFunc("/", instance.index)
@@ -49,8 +53,8 @@ func (i *Instance) getRecords(w http.ResponseWriter, r *http.Request) {
 
 func (i *Instance) createRecord(w http.ResponseWriter, r *http.Request) {
 	request := struct {
-		Url      string `json:"url"`
-		Interval int    `json:"interval"`
+		Url      string  `json:"url"`
+		Interval float64 `json:"interval"`
 	}{}
 	err := jsonDecode(http.MaxBytesReader(w, r.Body, i.RequestMaxBytes), &request)
 	if err != nil {
@@ -67,6 +71,7 @@ func (i *Instance) createRecord(w http.ResponseWriter, r *http.Request) {
 		Url:      request.Url,
 		Interval: request.Interval,
 	})
+	i.Fetcher.Start(record)
 	writeResponse(w, http.StatusCreated, struct {
 		Id int `json:"id"`
 	}{
@@ -81,6 +86,7 @@ func (i *Instance) deleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	i.Fetcher.Stop(id)
 	existed := i.Storage.DeleteRecord(id)
 	if existed {
 		writeResponse(w, http.StatusNoContent, nil)
