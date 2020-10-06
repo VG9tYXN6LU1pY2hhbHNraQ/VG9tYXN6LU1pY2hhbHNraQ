@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
+	"io"
+	"log"
 	"net/http"
 
 	"app/storage"
@@ -11,14 +13,15 @@ import (
 
 type Instance struct {
 	handler http.Handler
-	storage storage.Storage
+	Storage storage.Storage
 }
 
 func NewInstance() *Instance {
 	router := mux.NewRouter()
-	instance := &Instance{handler: router, storage: storage.New()}
+	instance := &Instance{handler: router, Storage: storage.New()}
 	router.HandleFunc("/", instance.index)
-	router.HandleFunc("/api/fetcher", instance.getRecords)
+	router.HandleFunc("/api/fetcher", instance.getRecords).Methods("GET")
+	router.HandleFunc("/api/fetcher", instance.createRecord).Methods("POST")
 	return instance
 }
 
@@ -27,11 +30,53 @@ func (i *Instance) ServeHTTP(writer http.ResponseWriter, request *http.Request) 
 }
 
 func (i *Instance) index(w http.ResponseWriter, r *http.Request) {
-	_, _ = fmt.Fprint(w, "Hello world!")
+	writeResponse(w, http.StatusOK, "Hello world!")
 }
 
 func (i *Instance) getRecords(w http.ResponseWriter, r *http.Request) {
-	records := i.storage.GetRecords()
-	response, _ := json.Marshal(records)
-	_, _ = fmt.Fprint(w, string(response))
+	records := i.Storage.GetRecords()
+	writeResponse(w, http.StatusOK, records)
+}
+
+func (i *Instance) createRecord(w http.ResponseWriter, r *http.Request) {
+	request := struct {
+		Url      string `json:"url"`
+		Interval int    `json:"interval"`
+	}{}
+	jsonDecode(r.Body, &request)
+
+	record := i.Storage.CreateRecord(storage.Record{
+		Url:      request.Url,
+		Interval: request.Interval,
+	})
+	writeResponse(w, http.StatusCreated, struct {
+		Id int `json:"id"`
+	}{
+		Id: record.Id,
+	})
+}
+
+func jsonDecode(reader io.ReadCloser, value interface{}) {
+	defer reader.Close()
+	decoder := json.NewDecoder(reader)
+	err := decoder.Decode(value)
+
+	if err != nil {
+		err = fmt.Errorf(`json decode: %w`, err)
+		log.Fatal(err)
+	}
+}
+
+func writeResponse(w http.ResponseWriter, statusCode int, v interface{}) {
+	w.WriteHeader(statusCode)
+	response, err := json.Marshal(v)
+	if err != nil {
+		err = fmt.Errorf(`write response: json marshal: %w`, err)
+		log.Fatalf("%s", err)
+	}
+	_, err = fmt.Fprint(w, string(response))
+	if err != nil {
+		err = fmt.Errorf(`write response: print: %w`, err)
+		log.Fatalf("%s", err)
+	}
 }
