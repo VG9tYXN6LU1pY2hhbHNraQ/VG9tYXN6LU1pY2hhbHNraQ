@@ -1,6 +1,6 @@
 package storage
 
-type Record struct {
+type Job struct {
 	Id       int            `json:"id"`
 	Url      string         `json:"url"`
 	Interval float64        `json:"interval"`

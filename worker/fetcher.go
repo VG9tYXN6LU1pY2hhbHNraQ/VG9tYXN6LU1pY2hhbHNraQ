@@ -16,7 +16,7 @@ type fetcher struct {
 }
 
 type Fetcher interface {
-	Start(record storage.Record)
+	Start(job storage.Job)
 	Stop(id int)
 }
 
@@ -28,9 +28,9 @@ func NewFetcher(st storage.Storage) Fetcher {
 	}
 }
 
-func (f *fetcher) Start(record storage.Record) {
-	interval := time.Duration(record.Interval * float64(time.Second))
-	f.manager.Start(record.Id, interval, f.fetchAndSave(record.Id, record.Url))
+func (f *fetcher) Start(job storage.Job) {
+	interval := time.Duration(job.Interval * float64(time.Second))
+	f.manager.Start(job.Id, interval, f.fetchAndSave(job.Id, job.Url))
 }
 
 func (f *fetcher) Stop(id int) {
@@ -50,7 +50,7 @@ func (f *fetcher) fetchAndSave(id int, url string) func(ctx context.Context) {
 		duration := float64(time.Since(start).Milliseconds()) / 1000.0
 		createdAt := unixWithFraction(time.Now())
 
-		f.storage.AppendRecordHistory(id, storage.HistoryEntry{
+		f.storage.AppendJobHistory(id, storage.HistoryEntry{
 			Response:  response,
 			Duration:  duration,
 			CreatedAt: createdAt,

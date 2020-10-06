@@ -22,16 +22,16 @@ func TestFetcher(t *testing.T) {
 	st := storage.New()
 	fetcher := worker.NewFetcher(st)
 
-	record := st.CreateRecord(storage.Record{
+	job := st.CreateJob(storage.Job{
 		Url:      server.URL + "/foo",
 		Interval: 0.15,
 	})
-	fetcher.Start(record)
+	fetcher.Start(job)
 	time.Sleep(700 * time.Millisecond)
-	fetcher.Stop(record.Id)
+	fetcher.Stop(job.Id)
 	time.Sleep(100 * time.Millisecond)
 
-	history, _ := st.GetRecordHistory(record.Id)
+	history, _ := st.GetJobHistory(job.Id)
 	for i := 0; i < len(history); i++ {
 		entry := history[i]
 		expectedResponse := fmt.Sprintf("foobar-%d", i)

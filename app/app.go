@@ -31,10 +31,10 @@ func NewInstance() *Instance {
 		RequestMaxBytes: 1024 * 1024,
 	}
 	router.HandleFunc("/", instance.index)
-	router.HandleFunc("/api/fetcher", instance.getRecords).Methods("GET")
-	router.HandleFunc("/api/fetcher", instance.createRecord).Methods("POST")
-	router.HandleFunc("/api/fetcher/{id}", instance.deleteRecord).Methods("DELETE")
-	router.HandleFunc("/api/fetcher/{id}/history", instance.getRecordHistory).Methods("GET")
+	router.HandleFunc("/api/fetcher", instance.getJobs).Methods("GET")
+	router.HandleFunc("/api/fetcher", instance.createJob).Methods("POST")
+	router.HandleFunc("/api/fetcher/{id}", instance.deleteJob).Methods("DELETE")
+	router.HandleFunc("/api/fetcher/{id}/history", instance.getJobHistory).Methods("GET")
 	return instance
 }
 
@@ -46,19 +46,19 @@ func (i *Instance) index(w http.ResponseWriter, r *http.Request) {
 	writeResponse(w, http.StatusOK, "Hello world!")
 }
 
-func (i *Instance) getRecords(w http.ResponseWriter, r *http.Request) {
-	records := i.Storage.GetRecords()
-	writeResponse(w, http.StatusOK, records)
+func (i *Instance) getJobs(w http.ResponseWriter, r *http.Request) {
+	jobs := i.Storage.GetJobs()
+	writeResponse(w, http.StatusOK, jobs)
 }
 
-func (i *Instance) createRecord(w http.ResponseWriter, r *http.Request) {
+func (i *Instance) createJob(w http.ResponseWriter, r *http.Request) {
 	request := struct {
 		Url      string  `json:"url"`
 		Interval float64 `json:"interval"`
 	}{}
 	err := jsonDecode(http.MaxBytesReader(w, r.Body, i.RequestMaxBytes), &request)
 	if err != nil {
-		log.Printf("create record: %s", err)
+		log.Printf("create job: %s", err)
 		if isRequestBodyTooLarge(err) {
 			writeResponse(w, http.StatusRequestEntityTooLarge, nil)
 		} else {
@@ -67,19 +67,19 @@ func (i *Instance) createRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	record := i.Storage.CreateRecord(storage.Record{
+	job := i.Storage.CreateJob(storage.Job{
 		Url:      request.Url,
 		Interval: request.Interval,
 	})
-	i.Fetcher.Start(record)
+	i.Fetcher.Start(job)
 	writeResponse(w, http.StatusCreated, struct {
 		Id int `json:"id"`
 	}{
-		Id: record.Id,
+		Id: job.Id,
 	})
 }
 
-func (i *Instance) deleteRecord(w http.ResponseWriter, r *http.Request) {
+func (i *Instance) deleteJob(w http.ResponseWriter, r *http.Request) {
 	id, err := getIdFromUrl(r)
 	if err != nil {
 		writeResponse(w, http.StatusNotFound, nil)
@@ -87,7 +87,7 @@ func (i *Instance) deleteRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	i.Fetcher.Stop(id)
-	existed := i.Storage.DeleteRecord(id)
+	existed := i.Storage.DeleteJob(id)
 	if existed {
 		writeResponse(w, http.StatusNoContent, nil)
 	} else {
@@ -95,14 +95,14 @@ func (i *Instance) deleteRecord(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (i *Instance) getRecordHistory(w http.ResponseWriter, r *http.Request) {
+func (i *Instance) getJobHistory(w http.ResponseWriter, r *http.Request) {
 	id, err := getIdFromUrl(r)
 	if err != nil {
 		writeResponse(w, http.StatusNotFound, nil)
 		return
 	}
 
-	history, exists := i.Storage.GetRecordHistory(id)
+	history, exists := i.Storage.GetJobHistory(id)
 	if exists {
 		writeResponse(w, http.StatusOK, history)
 	} else {
