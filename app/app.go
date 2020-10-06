@@ -30,6 +30,7 @@ func NewInstance() *Instance {
 	router.HandleFunc("/api/fetcher", instance.getRecords).Methods("GET")
 	router.HandleFunc("/api/fetcher", instance.createRecord).Methods("POST")
 	router.HandleFunc("/api/fetcher/{id}", instance.deleteRecord).Methods("DELETE")
+	router.HandleFunc("/api/fetcher/{id}/history", instance.getRecordHistory).Methods("GET")
 	return instance
 }
 
@@ -74,8 +75,7 @@ func (i *Instance) createRecord(w http.ResponseWriter, r *http.Request) {
 }
 
 func (i *Instance) deleteRecord(w http.ResponseWriter, r *http.Request) {
-	idString, _ := mux.Vars(r)["id"]
-	id, err := strconv.Atoi(idString)
+	id, err := getIdFromUrl(r)
 	if err != nil {
 		writeResponse(w, http.StatusNotFound, nil)
 		return
@@ -84,6 +84,21 @@ func (i *Instance) deleteRecord(w http.ResponseWriter, r *http.Request) {
 	existed := i.Storage.DeleteRecord(id)
 	if existed {
 		writeResponse(w, http.StatusNoContent, nil)
+	} else {
+		writeResponse(w, http.StatusNotFound, nil)
+	}
+}
+
+func (i *Instance) getRecordHistory(w http.ResponseWriter, r *http.Request) {
+	id, err := getIdFromUrl(r)
+	if err != nil {
+		writeResponse(w, http.StatusNotFound, nil)
+		return
+	}
+
+	history, exists := i.Storage.GetRecordHistory(id)
+	if exists {
+		writeResponse(w, http.StatusOK, history)
 	} else {
 		writeResponse(w, http.StatusNotFound, nil)
 	}
@@ -121,4 +136,9 @@ func writeResponse(w http.ResponseWriter, statusCode int, v interface{}) {
 		err = fmt.Errorf(`write response: print: %w`, err)
 		log.Fatalf("%s", err)
 	}
+}
+
+func getIdFromUrl(r *http.Request) (int, error) {
+	idString, _ := mux.Vars(r)["id"]
+	return strconv.Atoi(idString)
 }

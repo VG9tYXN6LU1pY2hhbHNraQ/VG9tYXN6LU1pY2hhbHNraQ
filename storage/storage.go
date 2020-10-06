@@ -9,6 +9,8 @@ type Storage interface {
 	CreateRecord(record Record) Record
 	GetRecords() []Record
 	DeleteRecord(id int) bool
+	AppendRecordHistory(id int, entry HistoryEntry)
+	GetRecordHistory(id int) ([]HistoryEntry, bool)
 }
 
 func New() Storage {
@@ -49,6 +51,17 @@ func (s *storage) GetRecords() []Record {
 	return records
 }
 
+func (s *storage) GetRecordHistory(id int) ([]HistoryEntry, bool) {
+	s.mutex.RLock()
+	record, exists := s.records[id]
+	s.mutex.RUnlock()
+	history := record.History
+	if record.History == nil {
+		history = []HistoryEntry{}
+	}
+	return history, exists
+}
+
 func (s *storage) DeleteRecord(id int) bool {
 	s.mutex.Lock()
 	_, exists := s.records[id]
@@ -57,4 +70,14 @@ func (s *storage) DeleteRecord(id int) bool {
 	}
 	s.mutex.Unlock()
 	return exists
+}
+
+func (s *storage) AppendRecordHistory(id int, entry HistoryEntry) {
+	s.mutex.Lock()
+	record, exists := s.records[id]
+	if exists {
+		record.History = append(record.History, entry)
+		s.records[id] = record
+	}
+	s.mutex.Unlock()
 }

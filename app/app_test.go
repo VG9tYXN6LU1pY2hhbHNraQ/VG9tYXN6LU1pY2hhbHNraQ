@@ -18,6 +18,15 @@ var defaultTestRecords = []storage.Record{{
 	Id:       1,
 	Url:      "https://httpbin.org/range/15",
 	Interval: 60,
+	History: []storage.HistoryEntry{{
+		Response:  storage.OptionalString("abcdefghijklmno"),
+		Duration:  0.571,
+		CreatedAt: 1559034638.31525,
+	}, {
+		Response:  nil,
+		Duration:  5,
+		CreatedAt: 1559034938.623,
+	}},
 }, {
 	Id:       2,
 	Url:      "https://httpbin.org/delay/10",
@@ -129,6 +138,31 @@ func TestManageRecordsConcurrently(t *testing.T) {
 		assertRecordsContainUrl(t, savedRecords, record.Url)
 	}
 	assertRecordsDoNotContainId(t, savedRecords, deletedRecordId)
+}
+
+func TestGetRecordHistory(t *testing.T) {
+	i := newTestAppInstance()
+
+	response := i.doRequest("GET", "/api/fetcher/1/history", "")
+	expected := `[` +
+		`{"response":"abcdefghijklmno","duration":0.571,"created_at":1559034638.31525},` +
+		`{"response":null,"duration":5,"created_at":1559034938.623}` +
+		`]`
+	assertResponse(t, response, http.StatusOK, expected)
+
+	i.Storage.AppendRecordHistory(1, storage.HistoryEntry{
+		Response:  storage.OptionalString("foobar"),
+		Duration:  42,
+		CreatedAt: 42,
+	})
+
+	response = i.doRequest("GET", "/api/fetcher/1/history", "")
+	expected = `[` +
+		`{"response":"abcdefghijklmno","duration":0.571,"created_at":1559034638.31525},` +
+		`{"response":null,"duration":5,"created_at":1559034938.623},` +
+		`{"response":"foobar","duration":42,"created_at":42}` +
+		`]`
+	assertResponse(t, response, http.StatusOK, expected)
 }
 
 func newTestAppInstance() *testAppInstance {
