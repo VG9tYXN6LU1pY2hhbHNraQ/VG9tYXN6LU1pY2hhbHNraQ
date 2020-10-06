@@ -15,6 +15,17 @@ func TestIndex(t *testing.T) {
 	assertResponse(t, response, http.StatusOK, "Hello world!")
 }
 
+func TestGetRecords(t *testing.T) {
+	i := newTestAppInstance()
+	response := i.doRequest("GET", "/api/fetcher", "")
+
+	expected := `[` +
+		`{"id":1,"url":"https://httpbin.org/range/15","interval":60},` +
+		`{"id":2,"url":"https://httpbin.org/delay/10","interval":120}` +
+		`]`
+	assertResponse(t, response, http.StatusOK, expected)
+}
+
 func newTestAppInstance() *testAppInstance {
 	instance := app.NewInstance()
 	return &testAppInstance{Instance: instance}
