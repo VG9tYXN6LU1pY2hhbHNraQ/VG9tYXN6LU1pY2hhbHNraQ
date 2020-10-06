@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"app/app"
@@ -58,6 +59,44 @@ func TestCreateRecord(t *testing.T) {
 	assertRecords(t, i.Storage.GetRecords(), append(defaultTestRecords, record))
 }
 
+func TestCreateRecordsConcurrently(t *testing.T) {
+	// meant to be run with -race flag
+
+	records := []storage.Record{{
+		Url:      "http://example.com/A",
+		Interval: 42,
+	}, {
+		Url:      "http://example.com/B",
+		Interval: 42,
+	}}
+
+	i := newTestAppInstance()
+	assertRecords(t, i.Storage.GetRecords(), defaultTestRecords)
+
+	wg := sync.WaitGroup{}
+	wg.Add(len(records) + 1)
+	for _, record := range records {
+		go func(record storage.Record) {
+			body := fmt.Sprintf(`{"url":"%s","interval":%d}`, record.Url, record.Interval)
+			_ = i.doRequest("POST", "/api/fetcher", body)
+			wg.Done()
+		}(record)
+	}
+	go func() {
+		// check whether existing records can be accessed while a new one is added
+		// there is no assertion because there are multiple possibilities of valid responses
+		// however relying on go race detector is sufficient
+		_ = i.doRequest("GET", "/api/fetcher", "")
+		wg.Done()
+	}()
+	wg.Wait()
+
+	savedRecords := i.Storage.GetRecords()
+	for _, record := range records {
+		assertRecordsContainUrl(t, savedRecords, record.Url)
+	}
+}
+
 func newTestAppInstance() *testAppInstance {
 	instance := app.NewInstance()
 	for _, record := range defaultTestRecords {
@@ -93,5 +132,19 @@ func assertResponse(t *testing.T, response *httptest.ResponseRecorder, code int,
 func assertRecords(t *testing.T, actual, expected []storage.Record) {
 	if !reflect.DeepEqual(expected, actual) {
 		t.Errorf("Expected records to be '%#v'. Got '%#v'", expected, actual)
+	}
+}
+
+func assertRecordsContainUrl(t *testing.T, records []storage.Record, url string) {
+	found := false
+	for _, record := range records {
+		if record.Url == url {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Errorf("Expected records to contain url '%s'. Got '%#v'", url, records)
 	}
 }
